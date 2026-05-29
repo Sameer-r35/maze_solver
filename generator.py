@@ -101,13 +101,11 @@ def generate_maze(rows, cols):
                     grid.set_cell(r, c, WATER)
 
     # ------------------------------------------------------------------ #
-    # STEP 6: Scatter coins on walkable cells
+    # STEP 6: Spawn coin clusters on MUD and WATER cells only.
+    # Coins are placed exclusively on costly terrain to create genuine
+    # risk/reward tension — collecting them means paying terrain costs.
     # ------------------------------------------------------------------ #
-    for r in range(1, rows - 1):
-        for c in range(1, cols - 1):
-            if grid.get_cell(r, c) in (PLAIN, MUD, WATER) and (r, c) not in (start_pos, end_pos):
-                if random.random() < 0.08:
-                    grid.add_coin(r, c)
+    spawn_coin_clusters(grid, start_pos, end_pos)
 
     # ------------------------------------------------------------------ #
     # STEP 7: Place START and END markers
@@ -116,6 +114,64 @@ def generate_maze(rows, cols):
     grid.set_cell(*end_pos, END)
 
     return grid
+
+
+# ------------------------------------------------------------------ #
+# Coin placement — clusters on MUD and WATER only
+# ------------------------------------------------------------------ #
+def spawn_coin_clusters(grid, start_pos, end_pos, clusters=3, coins_per_cluster=6):
+    """
+    Places coins in small clusters, exclusively on MUD (cost 5) and WATER (cost 10)
+    cells. This creates genuine risk/reward zones — an algorithm must pay terrain
+    costs to collect them, so only high-greed A* finds it worthwhile to detour.
+
+    Strategy:
+        1. Collect all eligible MUD/WATER cells (excludes start and end).
+        2. Pick `clusters` random anchor cells from that pool.
+        3. Around each anchor, place up to `coins_per_cluster` coins on the
+           nearest eligible neighbours (BFS-order so the cluster is tight).
+    """
+    eligible = [
+        (r, c)
+        for r in range(1, grid.rows - 1)
+        for c in range(1, grid.cols - 1)
+        if grid.get_cell(r, c) in (MUD, WATER)
+        and (r, c) not in (start_pos, end_pos)
+    ]
+
+    if not eligible:
+        return
+
+    random.shuffle(eligible)
+    eligible_set = set(eligible)
+
+    anchors_placed = 0
+    used = set()
+
+    for anchor in eligible:
+        if anchors_placed >= clusters:
+            break
+        if anchor in used:
+            continue
+
+        cluster_cells = []
+        queue = deque([anchor])
+        seen = {anchor}
+
+        while queue and len(cluster_cells) < coins_per_cluster:
+            r, c = queue.popleft()
+            if (r, c) in eligible_set and (r, c) not in used:
+                cluster_cells.append((r, c))
+            for nr, nc in grid.get_neighbors(r, c):
+                if (nr, nc) not in seen:
+                    seen.add((nr, nc))
+                    queue.append((nr, nc))
+
+        for r, c in cluster_cells:
+            grid.add_coin(r, c)
+            used.add((r, c))
+
+        anchors_placed += 1
 
 
 # ------------------------------------------------------------------ #

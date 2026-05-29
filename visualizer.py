@@ -79,6 +79,7 @@ class Visualizer:
         self.path_length     = 0
         self.path_cost       = 0.0
         self.coins_collected = 0
+        self.final_score     = 0.0
         self.elapsed_ms      = 0.0
         self.start_time      = None
 
@@ -265,15 +266,22 @@ class Visualizer:
         y += 18
 
         coins_val = str(self.coins_collected) if self.done else "—"
+        score_val = f"{self.final_score:.0f}" if self.done else "—"
         for label, value in [
             ("Nodes",   str(self.nodes_explored)),
             ("Length",  str(self.path_length)       if self.path_length  else "—"),
             ("Cost",    f"{self.path_cost:.0f}"     if self.path_cost    else "—"),
             ("Coins",   coins_val),
+            ("Score",   score_val),
             ("Time",    f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms   else "—"),
         ]:
             self.screen.blit(self.f_label.render(label, True, pygame.Color(TEXT_MUTED)), (px, y))
-            self.screen.blit(self.f_value.render(value, True, pygame.Color(TEXT_COLOR)), (px + 90, y))
+            # Highlight score in gold when positive, red when negative
+            if label == "Score" and self.done:
+                val_color = pygame.Color(GOLD_COLOR) if self.final_score >= 0 else pygame.Color("#F87171")
+            else:
+                val_color = pygame.Color(TEXT_COLOR)
+            self.screen.blit(self.f_value.render(value, True, val_color), (px + 90, y))
             y += 20
 
         # Keyboard shortcuts
@@ -385,6 +393,7 @@ class Visualizer:
             self.path_length     = len(self.path)
             self.path_cost       = sum(self.grid.get_cost(*cell) for cell in self.path)
             self.coins_collected = self.grid.get_coins_in_path(self.path)
+            self.final_score     = self.coins_collected * 100 - self.path_cost
 
     def _reset_state(self):
         self.generator       = None
@@ -399,6 +408,7 @@ class Visualizer:
         self.path_length     = 0
         self.path_cost       = 0.0
         self.coins_collected = 0
+        self.final_score     = 0.0
         self.elapsed_ms      = 0.0
         self.start_time      = None
 
