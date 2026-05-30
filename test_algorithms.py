@@ -1,3 +1,7 @@
+# Development utility — not part of the main application
+# Run this to verify all algorithms work correctly without launching Pygame
+
+
 from generator import generate_maze
 from algorithms.bfs import bfs
 from algorithms.dfs import dfs

@@ -4,31 +4,40 @@ from config import WALL, BACKGROUND
 
 def astar(grid, start, end, greed=0):
     """
-    A* Search — combines actual path cost (g) with a heuristic estimate (h).
-    f = g + h, where h is Manhattan distance to end (admissible: min cost is 1).
+    A* Search with greed parameter (0-100).
 
-    The `greed` parameter (0–100) blends the heuristic between:
-        greed=0   → pure A* (goal-directed, optimal)
-        greed=100 → coin-chasing (heuristic points toward nearest coin)
-        greed=50  → blend: 50% coin attraction + 50% goal direction
+    greed=0   → pure A*: minimizes actual path cost. Ignores coins entirely.
+    greed=100 → coin hunter: coin cells are treated as nearly free to enter,
+                so A* aggressively detours to collect them even through mud/water.
+    greed=N   → blend: coin cells get a cost discount proportional to greed.
 
-    When greed > 0 and coins exist, the heuristic shifts toward the nearest coin.
-    This can make A* take costlier paths to collect more coins, raising the score:
-        Score = (coins × 100) - path_cost
+    Why heuristic-only greed doesn't work:
+        Changing only the heuristic changes which nodes are explored first,
+        but A* still minimizes g+h. If the cheapest path doesn't go through
+        coins, the heuristic nudge isn't strong enough to change the final path.
 
-    Admissibility note: Manhattan distance never overestimates because the minimum
-    terrain cost is 1 (plain). Booster pads (cost < 1) are excluded for this reason.
+    The real fix — modify effective step cost for coin cells:
+        effective_cost = terrain_cost * (1 - 0.95 * greed/100)
 
-    Yields a state dict each step:
-        visited   : set of (r, c) cells already expanded
-        frontier  : set of (r, c) cells currently in the priority queue
-        current   : (r, c) cell being processed this step
-        path      : list of (r, c) from start → end, or None if not yet found
+        At greed=100: coin cell on water costs 10 * 0.05 = 0.5 instead of 10.
+        A* will eagerly detour through it because it's now "cheap".
+        At greed=0:   no discount, pure optimal cost routing.
+
+    Both heuristic and cost discount are applied together for maximum effect.
+
+    Yields state dict each step:
+        visited   : set of (r, c)
+        frontier  : set of (r, c)
+        current   : (r, c)
+        path      : list of (r, c) or None
     """
     heap = [(0, start)]
     came_from = {start: None}
     g_cost = {start: 0}
     visited = set()
+
+    coin_set = set(grid.coins)
+    blend = greed / 100.0
 
     while heap:
         _, current = heapq.heappop(heap)
@@ -40,19 +49,19 @@ def astar(grid, start, end, greed=0):
         frontier_set = {cell for _, cell in heap}
 
         yield {
-            "visited": set(visited),
+            "visited":  set(visited),
             "frontier": frontier_set,
-            "current": current,
-            "path": None,
+            "current":  current,
+            "path":     None,
         }
 
         if current == end:
             path = _reconstruct_path(came_from, start, end)
             yield {
-                "visited": set(visited),
+                "visited":  set(visited),
                 "frontier": set(),
-                "current": current,
-                "path": path,
+                "current":  current,
+                "path":     path,
             }
             return
 
@@ -61,42 +70,46 @@ def astar(grid, start, end, greed=0):
             if terrain in (WALL, BACKGROUND):
                 continue
 
-            step_cost = grid.get_cost(*neighbor)
-            new_g = g_cost[current] + step_cost
+            terrain_cost = grid.get_cost(*neighbor)
+
+            # Coin cells get a steep cost discount at high greed —
+            # this is what forces A* to actually choose different paths.
+            if neighbor in coin_set and greed > 0:
+                effective_cost = terrain_cost * (1.0 - 0.95 * blend)
+            else:
+                effective_cost = terrain_cost
+
+            new_g = g_cost[current] + effective_cost
 
             if new_g < g_cost.get(neighbor, float('inf')):
                 g_cost[neighbor] = new_g
                 came_from[neighbor] = current
-                h = _heuristic(neighbor, end, grid, greed)
-                f = new_g + h
-                heapq.heappush(heap, (f, neighbor))
+                h = _heuristic(neighbor, end, coin_set, blend)
+                heapq.heappush(heap, (new_g + h, neighbor))
 
-    # No path found
     yield {
-        "visited": set(visited),
+        "visited":  set(visited),
         "frontier": set(),
-        "current": None,
-        "path": [],
+        "current":  None,
+        "path":     [],
     }
 
 
-def _heuristic(cell, end, grid, greed):
+def _heuristic(cell, end, coins, blend):
     """
-    Adaptive heuristic based on greed level.
-    - greed=0  : pure Manhattan distance to goal
-    - greed=100: Manhattan distance to nearest coin (if any coins exist)
-    - in between: weighted blend of both
+    Blend of goal heuristic and coin waypoint heuristic.
+    blend=0: pure manhattan to goal.
+    blend=1: route through nearest coin as waypoint, then to goal.
     """
     goal_h = _manhattan(cell, end)
 
-    if greed == 0 or not grid.coins:
+    if blend == 0 or not coins:
         return goal_h
 
-    nearest_coin = min(grid.coins, key=lambda c: _manhattan(cell, c))
-    coin_h = _manhattan(cell, nearest_coin)
+    nearest_coin = min(coins, key=lambda c: _manhattan(cell, c))
+    coin_h = _manhattan(cell, nearest_coin) + _manhattan(nearest_coin, end)
 
-    blend = greed / 100
-    return blend * coin_h + (1 - blend) * goal_h
+    return (1 - blend) * goal_h + blend * coin_h
 
 
 def _manhattan(a, b):
@@ -110,4 +123,4 @@ def _reconstruct_path(came_from, start, end):
         path.append(node)
         node = came_from.get(node)
     path.reverse()
-    return path if path[0] == start else []
+    return path if path and path[0] == start else []
