@@ -63,6 +63,7 @@ class Visualizer:
         self.f_label   = _load_font(_IBM_REG,  12)
         self.f_value   = _load_font(_IBM_SEMI, 12, bold=True)
         self.f_algo    = _load_font(_IBM_SEMI, 13, bold=True)
+        self.f_star    = pygame.font.SysFont("segoeuisymbol,symbola,unifont", 13)
 
         # ---- algorithm state ---------------------------------------- #
         self.generator    = None
@@ -80,6 +81,7 @@ class Visualizer:
         self.path_cost       = 0.0
         self.coins_collected = 0
         self.score           = 0
+        self.rating          = 0.0
         self.elapsed_ms      = 0.0
         self.start_time      = None
 
@@ -265,18 +267,27 @@ class Visualizer:
         self.screen.blit(self.f_sec.render("STATS", True, pygame.Color(TEXT_MUTED)), (px, y))
         y += 18
 
-        coins_val = str(self.coins_collected) if self.done else "—"
-        score_val = str(self.score) if self.done else "—"
+        coins_val  = str(self.coins_collected) if self.done else "—"
+        score_val  = str(self.score)           if self.done else "—"
+        rating_val = f"★ {self.rating:.1f}"   if self.done else "—"
+
         for label, value in [
-            ("Nodes",   str(self.nodes_explored)),
-            ("Length",  str(self.path_length)       if self.path_length  else "—"),
-            ("Cost",    f"{self.path_cost:.0f}"     if self.path_cost    else "—"),
-            ("Coins",   coins_val),
-            ("Score",   score_val),
-            ("Time",    f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms   else "—"),
+            ("Nodes",  str(self.nodes_explored)),
+            ("Length", str(self.path_length)   if self.path_length else "—"),
+            ("Cost",   f"{self.path_cost:.0f}" if self.path_cost   else "—"),
+            ("Coins",  coins_val),
+            ("Score",  score_val),
+            ("Rating", rating_val),
         ]:
             self.screen.blit(self.f_label.render(label, True, pygame.Color(TEXT_MUTED)), (px, y))
-            self.screen.blit(self.f_value.render(value, True, pygame.Color(TEXT_COLOR)), (px + 90, y))
+
+            if label == "Score" and self.done:
+                val_color = pygame.Color(GOLD_COLOR) if self.score >= 0 else pygame.Color("#F87171")
+                self.screen.blit(self.f_value.render(value, True, val_color), (px + 90, y))
+            elif label == "Rating" and self.done:
+                self.screen.blit(self.f_star.render(value, True, pygame.Color(GOLD_COLOR)), (px + 90, y))
+            else:
+                self.screen.blit(self.f_value.render(value, True, pygame.Color(TEXT_COLOR)), (px + 90, y))
             y += 20
 
         # Keyboard shortcuts
@@ -389,6 +400,31 @@ class Visualizer:
             self.path_cost       = sum(self.grid.get_cost(*cell) for cell in self.path)
             self.coins_collected = self.grid.get_coins_in_path(self.path)
             self.score           = (self.coins_collected * 100) - int(self.path_cost)
+            self.rating          = self._calc_rating()
+
+    def _calc_rating(self):
+        """
+        Normalize into a 1.0–5.0 star rating.
+        70% path efficiency, 30% coin bonus.
+        Cost bounds based on actual path length so rating varies realistically.
+        """
+        max_coins = len(self.grid.coins) or 1
+
+        # Use actual path length as baseline — not rows+cols which is too large
+        # Best case: path length steps at cost 1 (all plain)
+        # Worst case: path length steps at cost 10 (all water)
+        path_len  = max(self.path_length, 1)
+        min_cost  = path_len * 1
+        max_cost  = path_len * 10
+
+        cost_ratio = 1.0 - ((self.path_cost - min_cost) / (max_cost - min_cost))
+        cost_ratio = max(0.0, min(1.0, cost_ratio))
+
+        coin_bonus = (self.coins_collected / max_coins)
+
+        raw    = (cost_ratio * 0.7) + (coin_bonus * 0.3)
+        rating = 1.0 + raw * 4.0
+        return round(max(1.0, min(5.0, rating)), 1)
 
     def _reset_state(self):
         self.generator       = None
@@ -404,6 +440,7 @@ class Visualizer:
         self.path_cost       = 0.0
         self.coins_collected = 0
         self.score           = 0
+        self.rating          = 0.0
         self.elapsed_ms      = 0.0
         self.start_time      = None
 
