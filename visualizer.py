@@ -377,7 +377,7 @@ class Visualizer:
         self.nodes_explored = len(state["visited"])
         if state["path"] is not None:
             self.path = state["path"]
-        if self.start_time:
+        if self.start_time and not self.done:
             self.elapsed_ms = (time.time() - self.start_time) * 1000
 
     def _finish(self):
