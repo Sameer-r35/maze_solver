@@ -276,12 +276,7 @@ class Visualizer:
             ("Time",    f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms   else "—"),
         ]:
             self.screen.blit(self.f_label.render(label, True, pygame.Color(TEXT_MUTED)), (px, y))
-            # Highlight score in gold when positive, red when negative
-            if label == "Score" and self.done:
-                val_color = pygame.Color(GOLD_COLOR) if self.final_score >= 0 else pygame.Color("#F87171")
-            else:
-                val_color = pygame.Color(TEXT_COLOR)
-            self.screen.blit(self.f_value.render(value, True, val_color), (px + 90, y))
+            self.screen.blit(self.f_value.render(value, True, pygame.Color(TEXT_COLOR)), (px + 90, y))
             y += 20
 
         # Keyboard shortcuts
