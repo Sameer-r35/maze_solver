@@ -272,10 +272,10 @@ class Visualizer:
         rating_val = f"★ {self.rating:.1f}"   if self.done else "—"
 
         for label, value in [
-            ("Nodes",  str(self.nodes_explored)),
-            ("Length", str(self.path_length)   if self.path_length else "—"),
-            ("Cost",   f"{self.path_cost:.0f}" if self.path_cost   else "—"),
-            ("Coins",  coins_val),
+            ("Nodes Explored",  str(self.nodes_explored)),
+            ("Path Length", str(self.path_length)   if self.path_length else "—"),
+            ("Path Cost",   f"{self.path_cost:.0f}" if self.path_cost   else "—"),
+            ("Coins Collected",  coins_val),
             ("Score",  score_val),
             ("Rating", rating_val),
         ]:
