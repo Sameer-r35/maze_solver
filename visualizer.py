@@ -84,10 +84,11 @@ class Visualizer:
         self.start_time      = None
 
         # ---- UI state ----------------------------------------------- #
-        self.selected_algo = "BFS"
-        self.speed_label   = "1x"
-        self.greed_value   = 0
-        self.on_generate   = None
+        self.selected_algo    = "BFS"
+        self.speed_label      = "1x"
+        self.greed_value      = 0
+        self.on_generate      = None
+        self.wants_main_menu  = False   # set True when Main Menu is clicked
 
         self._build_ui()
 
@@ -248,13 +249,17 @@ class Visualizer:
 
     def _draw_buttons(self, px):
         for key, label, color in [
-            ("solve",    "Solve",    "#6366F1"),
-            ("pause",    "Pause",    "#334155"),
-            ("reset",    "Reset",    "#334155"),
-            ("generate", "Generate", "#334155"),
+            ("solve",     "Solve",      "#6366F1"),
+            ("pause",     "Pause",      "#334155"),
+            ("reset",     "Reset",      "#334155"),
+            ("generate",  "Generate",   "#334155"),
+            ("main_menu", "Main Menu",  "#1E293B"),
         ]:
             rect = self.button_rects[key]
             pygame.draw.rect(self.screen, pygame.Color(color), rect, border_radius=5)
+            # Subtle border on Main Menu button to distinguish it
+            if key == "main_menu":
+                pygame.draw.rect(self.screen, pygame.Color("#475569"), rect, width=1, border_radius=5)
             txt = self.f_btn.render(label, True, pygame.Color("#FFFFFF"))
             self.screen.blit(txt, (rect.x + (rect.width - txt.get_width()) // 2, rect.y + 8))
 
@@ -273,7 +278,6 @@ class Visualizer:
             ("Cost",    f"{self.path_cost:.0f}"     if self.path_cost    else "—"),
             ("Coins",   coins_val),
             ("Score",   score_val),
-            ("Time",    f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms   else "—"),
         ]:
             self.screen.blit(self.f_label.render(label, True, pygame.Color(TEXT_MUTED)), (px, y))
             self.screen.blit(self.f_value.render(value, True, pygame.Color(TEXT_COLOR)), (px + 90, y))
@@ -358,6 +362,11 @@ class Visualizer:
         if callable(self.on_generate):
             self.on_generate()
 
+    def _action_main_menu(self):
+        """Signal main.py to switch back to the menu screen."""
+        self._reset_state()
+        self.wants_main_menu = True
+
     # ================================================================ #
     # INTERNAL
     # ================================================================ #
@@ -377,7 +386,7 @@ class Visualizer:
         self.nodes_explored = len(state["visited"])
         if state["path"] is not None:
             self.path = state["path"]
-        if self.start_time and not self.done:
+        if self.start_time:
             self.elapsed_ms = (time.time() - self.start_time) * 1000
 
     def _finish(self):
@@ -444,4 +453,9 @@ class Visualizer:
             self.button_rects[key] = pygame.Rect(px, y, rw, bh)
             y += bh + gap
 
-        self.stats_y = y + 10
+        # Main Menu button — slightly smaller, separated by extra gap
+        y += 4
+        self.button_rects["main_menu"] = pygame.Rect(px, y, rw, 30)
+        y += 30 + gap
+
+        self.stats_y = y + 6
