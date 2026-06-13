@@ -7,7 +7,7 @@ routes between screens.
 States:
     STATE_MENU      — landing page (MenuScreen)
     STATE_PLAY      — maze solver (Visualizer)
-    STATE_ANALYTICS — analytics dashboard (placeholder for now)
+    STATE_ANALYTICS — analytics dashboard (AnalyticsScreen)
     STATE_TUTORIAL  — how to play (placeholder for now)
 
 The Visualizer and grid are created lazily on first entry to STATE_PLAY
@@ -17,11 +17,12 @@ so the menu loads instantly without waiting for maze generation.
 import sys
 import pygame
 
-from config    import SCREEN_WIDTH, SCREEN_HEIGHT, GRID_ROWS, GRID_COLS
-from generator import generate_maze
-from renderer  import Renderer
+from config     import SCREEN_WIDTH, SCREEN_HEIGHT, GRID_ROWS, GRID_COLS
+from generator  import generate_maze
+from renderer   import Renderer
 from visualizer import Visualizer
-from menu      import MenuScreen
+from menu       import MenuScreen
+from analytics  import AnalyticsScreen
 
 # ------------------------------------------------------------------ #
 # Application states
@@ -43,22 +44,38 @@ def main():
 
     # Visualizer is created lazily — only when Play is first clicked.
     # This keeps the menu instant on startup.
-    renderer   = None
-    visualizer = None
+    renderer         = None
+    visualizer       = None
+    analytics_screen = None
+
+    # Tracks the grid currently loaded in the solver.
+    # Analytics uses this so it analyses the same maze the user just solved.
+    # None means the user has not played yet — analytics will generate a fresh maze.
+    current_grid = [None]   # list so nested functions can rebind it
 
     def _init_play():
         """Create (or re-enter) the solver screen with a fresh maze."""
         nonlocal renderer, visualizer
         if visualizer is None:
-            renderer   = Renderer()
-            grid       = generate_maze(GRID_ROWS, GRID_COLS)
-            visualizer = Visualizer(screen, renderer, grid)
+            renderer            = Renderer()
+            current_grid[0]     = generate_maze(GRID_ROWS, GRID_COLS)
+            visualizer          = Visualizer(screen, renderer, current_grid[0])
 
             def on_generate():
-                new_grid = generate_maze(GRID_ROWS, GRID_COLS)
-                visualizer.set_grid(new_grid)
+                current_grid[0] = generate_maze(GRID_ROWS, GRID_COLS)
+                visualizer.set_grid(current_grid[0])
 
             visualizer.on_generate = on_generate
+
+    def _init_analytics():
+        """Create a fresh AnalyticsScreen using the solver grid if available."""
+        nonlocal analytics_screen
+        fresh = False
+        if current_grid[0] is None:
+            # User skipped Play — generate a maze silently and flag it
+            current_grid[0] = generate_maze(GRID_ROWS, GRID_COLS)
+            fresh = True
+        analytics_screen = AnalyticsScreen(screen, current_grid[0], fresh_maze=fresh)
 
     # ---- State ----------------------------------------------------- #
     current_state = STATE_MENU
@@ -78,8 +95,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                if current_state == STATE_PLAY:
-                    # ESC from solver → back to menu (not quit)
+                if current_state in (STATE_PLAY, STATE_ANALYTICS, STATE_TUTORIAL):
                     current_state = STATE_MENU
                 else:
                     running = False
@@ -99,6 +115,7 @@ def main():
                 current_state = STATE_PLAY
 
             elif nav == "ANALYTICS":
+                _init_analytics()
                 current_state = STATE_ANALYTICS
 
             elif nav == "TUTORIAL":
@@ -117,30 +134,20 @@ def main():
                 visualizer.draw()
 
         elif current_state == STATE_ANALYTICS:
-            # Placeholder — analytics screen will be built next
-            screen.fill(pygame.Color("#181822"))
-            font = pygame.font.SysFont("Segoe UI", 28)
-            msg  = font.render("Analytics — coming soon.  Press ESC to go back.", True, pygame.Color("#94A3B8"))
-            screen.blit(msg, (SCREEN_WIDTH // 2 - msg.get_width() // 2,
-                               SCREEN_HEIGHT // 2 - msg.get_height() // 2))
-            pygame.display.flip()
-
-            for event in events:
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    current_state = STATE_MENU
+            nav = analytics_screen.handle_events(events)
+            analytics_screen.draw()
+            if nav == "MENU":
+                current_state = STATE_MENU
 
         elif current_state == STATE_TUTORIAL:
-            # Placeholder — tutorial screen will be built next
+            # Placeholder — tutorial screen will be built later
             screen.fill(pygame.Color("#181822"))
             font = pygame.font.SysFont("Segoe UI", 28)
-            msg  = font.render("How to Play — coming soon.  Press ESC to go back.", True, pygame.Color("#94A3B8"))
+            msg  = font.render("How to Play — coming soon.  Press ESC to go back.",
+                               True, pygame.Color("#94A3B8"))
             screen.blit(msg, (SCREEN_WIDTH // 2 - msg.get_width() // 2,
                                SCREEN_HEIGHT // 2 - msg.get_height() // 2))
             pygame.display.flip()
-
-            for event in events:
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    current_state = STATE_MENU
 
     pygame.quit()
     sys.exit()
