@@ -98,15 +98,21 @@ class MenuScreen:
         self._hovered = None
 
         # ---- scrolling background ----------------------------------- #
-        # Pre-generate a grid of terrain tiles larger than the screen
-        # so we can scroll it without gaps.
+        # We bake a surface exactly 2× the screen size in both dimensions.
+        # Each frame we draw it in a 2×2 grid offset by the scroll value.
+        # Because the offset is always < surface size (modulo keeps it bounded),
+        # the 2×2 grid always covers the entire screen with no gaps.
         self._scroll_x   = 0.0
         self._scroll_y   = 0.0
-        self._scroll_spd = 0.4          # pixels per frame
+        self._scroll_spd = 0.4
 
-        # Build a random terrain tile grid (2× screen size for wrap)
-        cols = SCREEN_WIDTH  // TILE + 4
-        rows = SCREEN_HEIGHT // TILE + 4
+        # Surface is 2× screen so the tiled grid has a natural seam point
+        self._bg_w = SCREEN_WIDTH  * 2
+        self._bg_h = SCREEN_HEIGHT * 2
+
+        cols = self._bg_w // TILE + 1
+        rows = self._bg_h // TILE + 1
+
         _weights = [PLAIN] * 70 + [MUD] * 12 + [WATER] * 8 + [WALL] * 10
         self._bg_tiles = [
             [random.choice(_weights) for _ in range(cols)]
@@ -115,9 +121,6 @@ class MenuScreen:
         self._bg_cols = cols
         self._bg_rows = rows
 
-        # Pre-render background to a surface so we don't recompute every frame
-        self._bg_w = cols * TILE
-        self._bg_h = rows * TILE
         self._bg_surf = pygame.Surface((self._bg_w, self._bg_h))
         self._bake_background()
 
@@ -147,7 +150,7 @@ class MenuScreen:
     def update(self):
         """Advance the background scroll animation."""
         self._scroll_x = (self._scroll_x + self._scroll_spd) % self._bg_w
-        self._scroll_y = (self._scroll_y + self._scroll_spd * 0.5) % self._bg_h
+        self._scroll_y = (self._scroll_y + self._scroll_spd * 0.4) % self._bg_h
 
     def draw(self, screen):
         """Full draw — background, panel, buttons."""
@@ -179,14 +182,17 @@ class MenuScreen:
                 )
 
     def _draw_background(self, screen):
-        """Tile the pre-baked surface with scrolling offset."""
+        """
+        Draw the bg_surf in a 2×2 grid offset by scroll values.
+        Because scroll_x < bg_w and scroll_y < bg_h (modulo guarantees this),
+        the four blits always cover the entire screen with no black gaps.
+        """
         ox = int(self._scroll_x)
         oy = int(self._scroll_y)
 
-        # Draw the bg_surf twice in each axis to cover the seam
-        for dy in (0, -self._bg_h):
-            for dx in (0, -self._bg_w):
-                screen.blit(self._bg_surf, (-ox + dx, -oy + dy))
+        for dy in (0, self._bg_h):
+            for dx in (0, self._bg_w):
+                screen.blit(self._bg_surf, (dx - ox, dy - oy))
 
     # ================================================================ #
     # PANEL
