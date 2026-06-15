@@ -85,20 +85,20 @@ PERSONALITY_LABELS = {
     "path_efficiency": "Efficiency",
 }
 
-# Table columns: (header, data_key, col_width)
+# Table columns scaled up to fill the full screen padded width (1224px total)
 TABLE_COLS = [
-    ("Algorithm",  "name",             148),
-    ("Nodes",      "nodes_explored",    72),
-    ("Cost",       "path_cost",         64),
-    ("Terrain+",   "terrain_penalty",   74),
-    ("Coins",      "coins_collected",   58),
-    ("Missed",     "coins_missed",      64),
-    ("Score",      "score",             68),
-    ("Effic.",     "efficiency_ratio",  64),
-    ("Verdict",    "verdicts",         200),
+    ("Algorithm",  "name",             200),
+    ("Nodes",      "nodes_explored",   100),
+    ("Cost",       "path_cost",        100),
+    ("Terrain+",   "terrain_penalty",  110),
+    ("Coins",      "coins_collected",  100),
+    ("Missed",     "coins_missed",     100),
+    ("Score",      "score",            100),
+    ("Effic.",     "efficiency_ratio", 100),
+    ("Verdict",    "verdicts",         314),
 ]
 
-# 3 tabs — descriptive stats removed
+# 3 tabs
 TABS = [
     ("table",   "Summary Table"),
     ("scatter", "Scatter Plot"),
@@ -116,8 +116,8 @@ INSIGHTS = {
         "Key finding: A weak or negative Pearson r means raw exploration effort doesn't buy a better result — search strategy matters more than how hard you search.",
     ),
     "terrain": (
-        "What this shows: Radar graph per algorithm — three axes show Cheap Terrain (%), Coin Ratio (%), and Path Efficiency (%). Wider = better on that axis.",
-        "Key finding: UCS and A*(0%) have wide Efficiency + Cheap Terrain axes. A*(100%) has the widest Coin Ratio — it sacrifices efficiency to collect coins. BFS has low efficiency despite a short path because it ignores terrain costs.",
+        "What this shows: Radar graph per algorithm — three axes show Cheap Terrain, Coin Ratio, and Path Efficiency. Axes are rescaled to actual min–max range so small real differences become visible.",
+        "Key finding: UCS and A*(0%) score high on Efficiency + Cheap Terrain. A*(100%) spikes on Coins. BFS/DFS sit low on Efficiency — they ignore terrain costs entirely.",
     ),
 }
 
@@ -212,13 +212,16 @@ class AnalyticsScreen:
     # ================================================================ #
 
     def _build_rects(self):
-        tab_area_w = SCREEN_WIDTH - PAD * 2 - 160
+        # We span the entire padded area without the -160 offset so tabs are equally spaced.
+        tab_area_w = SCREEN_WIDTH - PAD * 2
         tab_w      = tab_area_w // len(TABS)
+        
         self._tab_rects = {}
         for i, (key, _) in enumerate(TABS):
             self._tab_rects[key] = pygame.Rect(
                 PAD + i * tab_w, HEADER_H, tab_w, TAB_BAR_H
             )
+            
         self._btn_menu = pygame.Rect(
             SCREEN_WIDTH - PAD - 150, (HEADER_H - 34) // 2, 150, 34
         )
@@ -227,7 +230,6 @@ class AnalyticsScreen:
         start = (1, 1)
         end   = (self.grid.rows - 2, self.grid.cols - 2)
         raw   = run_analytics_batch(self.grid, start, end)
-        # generate_table_stats returns (rows, desc) — we only need rows now
         self._rows, _ = generate_table_stats(raw, self._total_coins)
         self._scatter_pts, self._pearson_r, self._r_label = calculate_scatter_data(raw)
         self._profiles = calculate_all_terrain_profiles(raw, self.grid)
@@ -468,7 +470,7 @@ class AnalyticsScreen:
             plot_x + plot_w // 2 - x_title.get_width() // 2,
             plot_y + plot_h + 22
         ))
-        y_title_surf = self.f_small.render("← Score", True, pygame.Color(TEXT_MUTED))
+        y_title_surf = self.f_small.render("Score →", True, pygame.Color(TEXT_MUTED))
         y_title_rot  = pygame.transform.rotate(y_title_surf, 90)
         self.screen.blit(y_title_rot, (
             cx, plot_y + plot_h // 2 - y_title_rot.get_height() // 2
@@ -645,9 +647,9 @@ class AnalyticsScreen:
 
         # Axis endpoint labels
         short_labels = {
-            "avg_step_cost":   "Cheap",
-            "coin_ratio":      "Coins",
-            "path_efficiency": "Effic.",
+            "avg_step_cost":   "T = ",
+            "coin_ratio":      "C = ",
+            "path_efficiency": "E = ",
         }
         label_pad = 16
         for i, key in enumerate(axis_order):

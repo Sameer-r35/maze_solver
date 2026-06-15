@@ -411,13 +411,42 @@ def calculate_algo_personality(name, data, grid, total_coins):
 
 def calculate_all_terrain_profiles(raw_data, grid):
     """
-    Computes algorithm personality profiles for all variants.
-    Returns dict keyed by algorithm name.
-    Each value has: avg_step_cost, coin_ratio, path_efficiency (all 0–100).
+    Computes algorithm personality profiles for all variants, then applies
+    per-axis min-max rescaling so the radar uses the full 0–100 radius.
+
+    Without rescaling: all values cluster between 78–95%, shapes look identical.
+    With rescaling: worst algo on each axis = 0%, best = 100%, spread is visible.
+
+    Example — Cheap Terrain raw values: BFS=80%, UCS=93%, Greedy=85%
+        min=80, max=93 → BFS=(80-80)/(93-80)*100=0%, UCS=100%, Greedy=38%
+    Now radar shapes genuinely diverge.
     """
     total_coins = len(grid.coins)
-    return {
+    axes = ["avg_step_cost", "coin_ratio", "path_efficiency"]
+
+    # Step 1: compute raw values for all algos
+    raw_profiles = {
         name: calculate_algo_personality(name, data, grid, total_coins)
         for name, data in raw_data.items()
         if data["path_found"]
     }
+
+    if not raw_profiles:
+        return {}
+
+    # Step 2: find min and max per axis across all algorithms
+    axis_min = {ax: min(p[ax] for p in raw_profiles.values()) for ax in axes}
+    axis_max = {ax: max(p[ax] for p in raw_profiles.values()) for ax in axes}
+
+    # Step 3: rescale each value — if all algos tie on an axis, set everyone to 50%
+    scaled = {}
+    for name, profile in raw_profiles.items():
+        scaled[name] = {}
+        for ax in axes:
+            lo, hi = axis_min[ax], axis_max[ax]
+            if hi - lo < 1e-6:
+                scaled[name][ax] = 50.0  # no spread — center everyone
+            else:
+                scaled[name][ax] = round((profile[ax] - lo) / (hi - lo) * 100, 1)
+
+    return scaled
