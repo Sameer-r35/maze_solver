@@ -200,7 +200,7 @@ class Visualizer:
 
     def _draw_title(self, px):
         self.screen.blit(
-            self.f_title.render("MAZE SOLVER", True, pygame.Color(TEXT_COLOR)),
+            self.f_title.render("HEURISTICA", True, pygame.Color(TEXT_COLOR)),
             (px, 18))
         pygame.draw.line(self.screen, pygame.Color(SIDEBAR_BORDER),
                          (px, 50), (SIDEBAR_WIDTH - px, 50), 1)

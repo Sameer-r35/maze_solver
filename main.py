@@ -6,7 +6,7 @@ routes between screens.
 
 States:
     STATE_MENU      — landing page (MenuScreen)
-    STATE_PLAY      — maze solver (Visualizer)
+    STATE_PLAY      — Heuristica (Visualizer)
     STATE_ANALYTICS — analytics dashboard (AnalyticsScreen)
     STATE_TUTORIAL  — how to play (TutorialScreen)
 
@@ -37,7 +37,7 @@ STATE_TUTORIAL  = "TUTORIAL"
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Maze Solver")
+    pygame.display.set_caption("Heuristica")
     clock = pygame.time.Clock()
 
     # ---- Screen objects -------------------------------------------- #
