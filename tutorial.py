@@ -33,7 +33,7 @@ BORDER_COLOR = "#32323E"
 
 TUTORIAL_STEPS = [
     {
-        "title": "Welcome to Maze Solver!",
+        "title": "Welcome to Heuristica!",
         "lines": [
             "This application simulates and evaluates how different",
             "pathfinding algorithms navigate weighted environments.",

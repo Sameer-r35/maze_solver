@@ -227,7 +227,7 @@ class MenuScreen:
 
     def _draw_title(self, screen):
         # Main title
-        title_surf = self.f_title.render("MAZE SOLVER", True, pygame.Color("#6366F1"))
+        title_surf = self.f_title.render("HEURISTICA", True, pygame.Color("#6366F1"))
         tx = self.panel_x + (PANEL_W - title_surf.get_width()) // 2
         ty = self.panel_y + 38
         screen.blit(title_surf, (tx, ty))
