@@ -362,51 +362,62 @@ def _interpret_r(r):
 
 
 # ------------------------------------------------------------------ #
-# PHASE 4 — TERRAIN PROFILE (Algorithm Personality)
+# PHASE 4 — ALGORITHM PERSONALITY (Radar Graph)
 # ------------------------------------------------------------------ #
 
-def calculate_terrain_profile(path, grid):
+def calculate_algo_personality(name, data, grid, total_coins):
     """
-    Converts a path into a relative frequency distribution of terrain
-    types — what percentage of the path walked through PLAIN, MUD, WATER.
+    Computes 3 radar axes that meaningfully differentiate algorithms:
 
-    This is a direct application of Math 2205 Chapter 2 (frequency
-    distributions / relative frequency).
+        1. Avg Step Cost  — inverted avg cost per step, normalized 0–100
+                           100% = all plain (cheapest), 0% = all water (costliest)
+                           BFS/DFS: medium. UCS/A*0%: high. A*100%: low.
 
-    Returns:
-        dict: {"PLAIN": float%, "MUD": float%, "WATER": float%}
-        Returns zeroed dict if path is empty.
+        2. Coin Ratio     — coins_collected / total_coins * 100
+                           0–100%. Directly shows coin aggressiveness.
+                           BFS/UCS: low. A*100%: high.
 
-    Used for:
-        - The radar graph in the Analytics overlay
-        - Comparing algorithm "personalities" side by side
+        3. Path Efficiency — min_possible_cost / actual_cost * 100
+                            100% = perfectly optimal plain path.
+                            BFS: low (ignores terrain). UCS/A*0%: high.
+                            A*100%: low (takes costly detours for coins).
     """
-    if not path:
-        return {PLAIN: 0.0, MUD: 0.0, WATER: 0.0}
+    if not data["path_found"] or not data["path"]:
+        return {"avg_step_cost": 0.0, "coin_ratio": 0.0, "path_efficiency": 0.0}
 
-    counts = {PLAIN: 0, MUD: 0, WATER: 0}
-    total  = 0
+    path_len  = data["path_length"]
+    path_cost = data["path_cost"]
+    coins     = data["coins_collected"]
 
-    for r, c in path:
-        terrain = grid.get_cell(r, c)
-        if terrain in counts:
-            counts[terrain] += 1
-            total += 1
-        # START and END cells are skipped — they're not meaningful terrain
+    # Axis 1: avg step cost inverted — higher % means cheaper terrain
+    avg_cost     = path_cost / path_len if path_len > 0 else 1.0
+    avg_cost_pct = max(0.0, min(100.0, (1.0 - (avg_cost - 1.0) / 9.0) * 100))
 
-    if total == 0:
-        return {PLAIN: 0.0, MUD: 0.0, WATER: 0.0}
+    # Axis 2: coin collection ratio
+    coin_ratio = (coins / total_coins * 100) if total_coins > 0 else 0.0
+    coin_ratio = max(0.0, min(100.0, coin_ratio))
 
-    return {t: round((counts[t] / total) * 100, 1) for t in counts}
+    # Axis 3: path efficiency vs plain-cost baseline
+    min_cost   = path_len * 1
+    efficiency = (min_cost / path_cost * 100) if path_cost > 0 else 100.0
+    efficiency = max(0.0, min(100.0, efficiency))
+
+    return {
+        "avg_step_cost":   round(avg_cost_pct, 1),
+        "coin_ratio":      round(coin_ratio,   1),
+        "path_efficiency": round(efficiency,   1),
+    }
 
 
 def calculate_all_terrain_profiles(raw_data, grid):
     """
-    Convenience wrapper — computes terrain profiles for all algorithms
-    in one call. Returns dict keyed by algorithm name.
+    Computes algorithm personality profiles for all variants.
+    Returns dict keyed by algorithm name.
+    Each value has: avg_step_cost, coin_ratio, path_efficiency (all 0–100).
     """
+    total_coins = len(grid.coins)
     return {
-        name: calculate_terrain_profile(data["path"], grid)
+        name: calculate_algo_personality(name, data, grid, total_coins)
         for name, data in raw_data.items()
         if data["path_found"]
     }

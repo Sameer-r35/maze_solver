@@ -28,7 +28,6 @@ from config import (
     SCREEN_WIDTH, SCREEN_HEIGHT,
     BG_COLOR, SIDEBAR_BORDER,
     TEXT_COLOR, TEXT_MUTED,
-    PLAIN, MUD, WATER,
 )
 from statistics_engine import (
     run_analytics_batch,
@@ -73,11 +72,17 @@ MUTED_LINE   = "#32323E"
 CONTENT_BG   = "#1A1A2A"
 INSIGHT_BG   = "#1E1E30"
 
-# Terrain colors
-TERRAIN_COLORS = {
-    PLAIN: "#F5F0E8",
-    MUD:   "#8B5E3C",
-    WATER: "#4A90D9",
+# Personality axis colors — one per axis
+PERSONALITY_COLORS = {
+    "avg_step_cost":   "#22C55E",   # green  — cheaper terrain = good
+    "coin_ratio":      "#FCD34D",   # gold   — coins
+    "path_efficiency": "#6366F1",   # indigo — efficiency
+}
+
+PERSONALITY_LABELS = {
+    "avg_step_cost":   "Cheap Terrain",
+    "coin_ratio":      "Coin Ratio",
+    "path_efficiency": "Efficiency",
 }
 
 # Table columns: (header, data_key, col_width)
@@ -111,8 +116,8 @@ INSIGHTS = {
         "Key finding: A weak or negative Pearson r means raw exploration effort doesn't buy a better result — search strategy matters more than how hard you search.",
     ),
     "terrain": (
-        "What this shows: Radar graph per algorithm — three axes at 120° show the relative frequency (%) of Plain, Mud, and Water terrain on each algorithm's final path.",
-        "Key finding: UCS and A*(0%) radars hug the Plain axis (cheap terrain). A*(100%) has the widest Mud/Water reach — it deliberately enters costly terrain to collect coins.",
+        "What this shows: Radar graph per algorithm — three axes show Cheap Terrain (%), Coin Ratio (%), and Path Efficiency (%). Wider = better on that axis.",
+        "Key finding: UCS and A*(0%) have wide Efficiency + Cheap Terrain axes. A*(100%) has the widest Coin Ratio — it sacrifices efficiency to collect coins. BFS has low efficiency despite a short path because it ignores terrain costs.",
     ),
 }
 
@@ -543,7 +548,7 @@ class AnalyticsScreen:
         y = CONTENT_Y + 18
 
         sec = self.f_sec.render(
-            "ALGORITHM PERSONALITY  —  relative frequency (%) of terrain types on each path",
+            "ALGORITHM PERSONALITY  —  Cheap Terrain · Coin Ratio · Path Efficiency  (0–100%, wider = better)",
             True, pygame.Color(TEXT_MUTED)
         )
         self.screen.blit(sec, (x, y))
@@ -556,23 +561,23 @@ class AnalyticsScreen:
             return
 
         # Legend
-        terrain_order  = [PLAIN, MUD, WATER]
-        terrain_labels = {PLAIN: "Plain (cost 1)", MUD: "Mud (cost 5)", WATER: "Water (cost 10)"}
+        axis_order = ["avg_step_cost", "coin_ratio", "path_efficiency"]
         lx = x
-        for t in terrain_order:
-            pygame.draw.rect(self.screen, pygame.Color(TERRAIN_COLORS[t]),
+        for key in axis_order:
+            col = PERSONALITY_COLORS[key]
+            lbl = PERSONALITY_LABELS[key]
+            pygame.draw.rect(self.screen, pygame.Color(col),
                              (lx, y, 13, 13), border_radius=2)
-            lbl = self.f_small.render(terrain_labels[t], True, pygame.Color(TEXT_MUTED))
-            self.screen.blit(lbl, (lx + 17, y))
-            lx += lbl.get_width() + 36
+            surf = self.f_small.render(lbl, True, pygame.Color(TEXT_MUTED))
+            self.screen.blit(surf, (lx + 17, y))
+            lx += surf.get_width() + 40
         y += 24
 
         # Grid layout: 4 columns, 2 rows for 7 algorithms
         algo_names = list(self._profiles.keys())
         cols       = 4
-        radar_r    = 85     # radius of each radar circle
+        radar_r    = 85
         cell_w     = (SCREEN_WIDTH - PAD * 2) // cols
-        # Available height split into 2 rows, each radar centered in its cell
         available_h = CONTENT_Y + CONTENT_H - y - 12
         cell_h      = available_h // 2
 
@@ -587,28 +592,25 @@ class AnalyticsScreen:
         """
         Draws a single radar graph with three axes at 120° angles.
 
-        Axes (per feature list spec):
-            PLAIN → up       (270°)
-            MUD   → bottom-right (30°)
-            WATER → bottom-left  (150°)
+        Axes:
+            avg_step_cost   → up (270°)         green  — cheaper = better
+            coin_ratio      → bottom-right (30°) gold   — coins collected %
+            path_efficiency → bottom-left (150°) indigo — efficiency %
 
-        The percentage (0–100) maps to distance from center (0–r).
-        Filled polygon shows the distribution shape.
+        All values 0–100, mapped to distance from center.
         """
-        terrain_order = [PLAIN, MUD, WATER]
-        angles_deg    = [270, 30, 150]
-        angles_rad    = [math.radians(a) for a in angles_deg]
+        axis_order = ["avg_step_cost", "coin_ratio", "path_efficiency"]
+        angles_deg = [270, 30, 150]
+        angles_rad = [math.radians(a) for a in angles_deg]
 
         # Background circle
         pygame.draw.circle(self.screen, pygame.Color("#1E1E2E"), (cx, cy), r + 10)
         pygame.draw.circle(self.screen, pygame.Color(MUTED_LINE), (cx, cy), r + 10, 1)
 
-        # Concentric reference rings at 25 / 50 / 75 / 100%
+        # Concentric reference rings
         for pct in [0.25, 0.5, 0.75, 1.0]:
-            ring_r = int(r * pct)
-            pygame.draw.circle(self.screen, pygame.Color("#2A2A3E"), (cx, cy), ring_r, 1)
+            pygame.draw.circle(self.screen, pygame.Color("#2A2A3E"), (cx, cy), int(r * pct), 1)
 
-        # 50% label on the right of the ring
         lbl_50 = self.f_small.render("50%", True, pygame.Color("#444466"))
         self.screen.blit(lbl_50, (cx + int(r * 0.5) + 3, cy - lbl_50.get_height() // 2))
 
@@ -618,47 +620,49 @@ class AnalyticsScreen:
             ey = cy + int(r * math.sin(angle))
             pygame.draw.line(self.screen, pygame.Color("#2A2A3E"), (cx, cy), (ex, ey), 1)
 
-        # Build polygon vertices from percentages
+        # Build polygon from personality values
         polygon_pts = []
-        for i, t in enumerate(terrain_order):
-            pct   = profile.get(t, 0.0) / 100.0
+        for i, key in enumerate(axis_order):
+            pct   = profile.get(key, 0.0) / 100.0
             dist  = r * pct
             angle = angles_rad[i]
             px    = cx + int(dist * math.cos(angle))
             py    = cy + int(dist * math.sin(angle))
             polygon_pts.append((px, py))
 
-        # Filled polygon (translucent indigo overlay)
+        # Filled polygon
         if len(polygon_pts) >= 3:
             poly_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             pygame.draw.polygon(poly_surf, (99, 102, 241, 55), polygon_pts)
             self.screen.blit(poly_surf, (0, 0))
             pygame.draw.polygon(self.screen, pygame.Color(ACCENT), polygon_pts, 2)
 
-        # Vertex dots (colored by terrain type)
+        # Vertex dots colored per axis
         for i, (px, py) in enumerate(polygon_pts):
-            col = TERRAIN_COLORS[terrain_order[i]]
+            col = PERSONALITY_COLORS[axis_order[i]]
             pygame.draw.circle(self.screen, pygame.Color(col), (px, py), 5)
             pygame.draw.circle(self.screen, pygame.Color("#FFFFFF"), (px, py), 5, 1)
 
-        # Axis endpoint labels: terrain name + %
-        terrain_short = {PLAIN: "Plain", MUD: "Mud", WATER: "Water"}
-        label_pad     = 16
-        for i, t in enumerate(terrain_order):
-            pct   = profile.get(t, 0.0)
+        # Axis endpoint labels
+        short_labels = {
+            "avg_step_cost":   "Cheap",
+            "coin_ratio":      "Coins",
+            "path_efficiency": "Effic.",
+        }
+        label_pad = 16
+        for i, key in enumerate(axis_order):
+            val   = profile.get(key, 0.0)
             angle = angles_rad[i]
             lx    = cx + int((r + label_pad) * math.cos(angle))
             ly    = cy + int((r + label_pad) * math.sin(angle))
-            text  = f"{terrain_short[t]} {pct:.0f}%"
-            surf  = self.f_small.render(text, True, pygame.Color(TERRAIN_COLORS[t]))
-
-            # Anchor label so it doesn't overlap the spoke
+            text  = f"{short_labels[key]} {val:.0f}%"
+            surf  = self.f_small.render(text, True, pygame.Color(PERSONALITY_COLORS[key]))
             if math.cos(angle) >= 0:
                 self.screen.blit(surf, (lx, ly - surf.get_height() // 2))
             else:
                 self.screen.blit(surf, (lx - surf.get_width(), ly - surf.get_height() // 2))
 
-        # Algorithm name below the radar
+        # Algorithm name below radar
         name_surf = self.f_small.render(title, True, pygame.Color(TEXT_COLOR))
         self.screen.blit(name_surf, (
             cx - name_surf.get_width() // 2,
