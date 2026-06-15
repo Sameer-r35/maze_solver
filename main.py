@@ -8,7 +8,7 @@ States:
     STATE_MENU      — landing page (MenuScreen)
     STATE_PLAY      — maze solver (Visualizer)
     STATE_ANALYTICS — analytics dashboard (AnalyticsScreen)
-    STATE_TUTORIAL  — how to play (placeholder for now)
+    STATE_TUTORIAL  — how to play (TutorialScreen)
 
 The Visualizer and grid are created lazily on first entry to STATE_PLAY
 so the menu loads instantly without waiting for maze generation.
@@ -23,6 +23,7 @@ from renderer   import Renderer
 from visualizer import Visualizer
 from menu       import MenuScreen
 from analytics  import AnalyticsScreen
+from tutorial   import TutorialScreen
 
 # ------------------------------------------------------------------ #
 # Application states
@@ -40,7 +41,8 @@ def main():
     clock = pygame.time.Clock()
 
     # ---- Screen objects -------------------------------------------- #
-    menu_screen = MenuScreen()
+    menu_screen     = MenuScreen()
+    tutorial_screen = TutorialScreen()
 
     # Visualizer is created lazily — only when Play is first clicked.
     # This keeps the menu instant on startup.
@@ -96,6 +98,8 @@ def main():
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 if current_state in (STATE_PLAY, STATE_ANALYTICS, STATE_TUTORIAL):
+                    if current_state == STATE_TUTORIAL:
+                        tutorial_screen.current_step = 0  # Reset progress on sudden exit
                     current_state = STATE_MENU
                 else:
                     running = False
@@ -140,14 +144,13 @@ def main():
                 current_state = STATE_MENU
 
         elif current_state == STATE_TUTORIAL:
-            # Placeholder — tutorial screen will be built later
-            screen.fill(pygame.Color("#181822"))
-            font = pygame.font.SysFont("Segoe UI", 28)
-            msg  = font.render("How to Play — coming soon.  Press ESC to go back.",
-                               True, pygame.Color("#94A3B8"))
-            screen.blit(msg, (SCREEN_WIDTH // 2 - msg.get_width() // 2,
-                               SCREEN_HEIGHT // 2 - msg.get_height() // 2))
+            nav = tutorial_screen.handle_events(events)
+            tutorial_screen.draw(screen)
             pygame.display.flip()
+            
+            if nav == "MENU":
+                tutorial_screen.current_step = 0  # Reset tutorial index back to slide 1
+                current_state = STATE_MENU
 
     pygame.quit()
     sys.exit()
