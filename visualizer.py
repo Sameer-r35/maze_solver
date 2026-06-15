@@ -84,10 +84,11 @@ class Visualizer:
         self.start_time      = None
 
         # ---- UI state ----------------------------------------------- #
-        self.selected_algo = "BFS"
-        self.speed_label   = "1x"
-        self.greed_value   = 0
-        self.on_generate   = None
+        self.selected_algo    = "BFS"
+        self.speed_label      = "1x"
+        self.greed_value      = 0
+        self.on_generate      = None
+        self.wants_main_menu  = False   # set True when Main Menu is clicked
 
         self._build_ui()
 
@@ -248,10 +249,11 @@ class Visualizer:
 
     def _draw_buttons(self, px):
         for key, label, color in [
-            ("solve",    "Solve",    "#6366F1"),
-            ("pause",    "Pause",    "#334155"),
-            ("reset",    "Reset",    "#334155"),
-            ("generate", "Generate", "#334155"),
+            ("solve",     "Solve",      "#6366F1"),
+            ("pause",     "Pause",      "#334155"),
+            ("reset",     "Reset",      "#334155"),
+            ("generate",  "Generate",   "#334155"),
+            ("main_menu", "Main Menu",  "#6366F1"),
         ]:
             rect = self.button_rects[key]
             pygame.draw.rect(self.screen, pygame.Color(color), rect, border_radius=5)
@@ -273,27 +275,11 @@ class Visualizer:
             ("Cost",    f"{self.path_cost:.0f}"     if self.path_cost    else "—"),
             ("Coins",   coins_val),
             ("Score",   score_val),
-            ("Time",    f"{self.elapsed_ms:.1f} ms" if self.elapsed_ms   else "—"),
         ]:
             self.screen.blit(self.f_label.render(label, True, pygame.Color(TEXT_MUTED)), (px, y))
             self.screen.blit(self.f_value.render(value, True, pygame.Color(TEXT_COLOR)), (px + 90, y))
             y += 20
 
-        # Keyboard shortcuts
-        y += 8
-        pygame.draw.line(self.screen, pygame.Color(SIDEBAR_BORDER),
-                         (px, y), (SIDEBAR_WIDTH - px, y), 1)
-        y += 10
-        for key, desc in [
-            ("[Enter]", "Solve"),
-            ("[Space]", "Pause"),
-            ("[R]",     "Reset"),
-            ("[G]",     "Generate"),
-            ("[ESC]",   "Exit"),
-        ]:
-            self.screen.blit(self.f_key.render(key,  True, pygame.Color("#6366F1")), (px, y))
-            self.screen.blit(self.f_key.render(desc, True, pygame.Color(TEXT_MUTED)), (px + 62, y))
-            y += 17
 
     # ================================================================ #
     # EVENT HANDLING
@@ -357,6 +343,11 @@ class Visualizer:
     def _action_generate(self):
         if callable(self.on_generate):
             self.on_generate()
+
+    def _action_main_menu(self):
+        """Signal main.py to switch back to the menu screen."""
+        self._reset_state()
+        self.wants_main_menu = True
 
     # ================================================================ #
     # INTERNAL
@@ -444,4 +435,8 @@ class Visualizer:
             self.button_rects[key] = pygame.Rect(px, y, rw, bh)
             y += bh + gap
 
-        self.stats_y = y + 10
+        # Main Menu button
+        self.button_rects["main_menu"] = pygame.Rect(px, y, rw, bh)
+        y += bh + gap
+
+        self.stats_y = y + 6
