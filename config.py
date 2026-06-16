@@ -1,4 +1,4 @@
-# Configuration constants for Maze Solver
+# Configuration constants for Heuristica
 
 # Terrain types
 PLAIN      = "PLAIN"
