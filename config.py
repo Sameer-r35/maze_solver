@@ -28,7 +28,7 @@ COLORS = {
     WALL:       "#9EA2AE",
     BACKGROUND: "#181822",
     START:      "#EF4444",
-    END:        "#22C55E",
+    END:        "#F97316",
 }
 
 # Window dimensions
